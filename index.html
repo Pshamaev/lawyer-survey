@@ -194,7 +194,7 @@
 <div id="progress-wrap"><div id="progress-bar"></div></div>
 
 <main id="form-view">
-  <p class="intro">Коллеги, делаю сервис для нашей работы. Прежде чем строить дальше — хочу понять, что реально болит, а не что мне кажется. 7 вопросов, 2-3 минуты, анонимно. Свободные графы ценнее галочек — пишите как есть.</p>
+  <p class="intro">Коллеги, делаю сервис для нашей работы. Прежде чем строить дальше — хочу понять, что реально болит, а не что мне кажется. 9 вопросов, 2-3 минуты, анонимно. Свободные графы ценнее галочек — пишите как есть.</p>
 
   <section class="q" id="q1">
     <h2>Пара слов о вас</h2>
@@ -238,7 +238,7 @@
       <label class="opt"><input type="checkbox" value="Разъяснение доверителям перспектив и рисков"><span>Разъяснение доверителям перспектив и рисков</span></label>
       <label class="opt"><input type="checkbox" value="Контроль сроков и учёт дел"><span>Контроль сроков и учёт дел</span></label>
     </div>
-    <div class="sub-label">Другое</div>
+    <div class="sub-label">Своё — не считается в лимит, пишите свободно</div>
     <input type="text" id="time_wasters_other" placeholder="Свой вариант">
   </section>
 
@@ -252,6 +252,8 @@
       <label class="opt"><input type="checkbox" value="ChatGPT, Claude или другие ИИ"><span>ChatGPT, Claude или другие ИИ</span></label>
       <label class="opt"><input type="checkbox" value="Ничего из перечисленного"><span>Ничего из перечисленного</span></label>
     </div>
+    <div class="sub-label">Другое</div>
+    <input type="text" id="tools_other" placeholder="Чего нет в списке">
   </section>
 
   <section class="q" id="q4">
@@ -268,24 +270,44 @@
       <label class="opt"><input type="radio" name="ai_usage" value="Принципиально не доверяю"><span>Принципиально не доверяю</span></label>
     </div>
     <div class="cond" id="q5-cond">
-      <div class="sub-label">Что оттолкнуло?</div>
-      <textarea id="ai_quit_reason"></textarea>
+      <div class="sub-label" id="q5-cond-label">Почему?</div>
+      <textarea id="ai_comment" placeholder="Необязательно"></textarea>
     </div>
   </section>
 
   <section class="q" id="q6">
-    <h2>Представьте ассистента, который отвечает от актуального текста нормы с выдержкой, честно говорит, чего не знает, и даёт реквизиты судебной практики. Насколько это полезно в вашей работе?</h2>
+    <h2>Если бы сервис умел работать с материалами конкретного дела — хранить документы по делу, готовить проекты ходатайств и жалоб с учётом всего контекста дела — насколько это вам нужно?</h2>
     <div id="q6-opts">
-      <label class="opt"><input type="radio" name="assistant_usefulness" value="Очень полезно, ждал(а) такого"><span>Очень полезно, ждал(а) такого</span></label>
-      <label class="opt"><input type="radio" name="assistant_usefulness" value="Скорее полезно"><span>Скорее полезно</span></label>
-      <label class="opt"><input type="radio" name="assistant_usefulness" value="Сомневаюсь"><span>Сомневаюсь</span></label>
-      <label class="opt"><input type="radio" name="assistant_usefulness" value="Не нужно"><span>Не нужно</span></label>
+      <label class="opt"><input type="radio" name="case_office_need" value="Очень нужно"><span>Очень нужно</span></label>
+      <label class="opt"><input type="radio" name="case_office_need" value="Скорее нужно"><span>Скорее нужно</span></label>
+      <label class="opt"><input type="radio" name="case_office_need" value="Не нужно"><span>Не нужно</span></label>
+      <label class="opt"><input type="radio" name="case_office_need" value="У меня уже есть такое решение"><span>У меня уже есть такое решение</span></label>
     </div>
-    <div class="sub-label">Что такой ассистент должен уметь обязательно, чтобы вы стали им пользоваться постоянно?</div>
-    <textarea id="assistant_must_have" placeholder="Необязательно"></textarea>
+    <div class="cond" id="q6-cond">
+      <div class="sub-label">Какое, если не секрет?</div>
+      <textarea id="case_office_solution" placeholder="Необязательно"></textarea>
+    </div>
   </section>
 
   <section class="q" id="q7">
+    <h2>Главный вопрос про такой сервис — загрузка документов дела с персональными данными. Что могло бы снять для вас этот барьер?</h2>
+    <div id="q7-opts">
+      <label class="opt"><input type="checkbox" value="Программа на моём компьютере сама заменяет ФИО и данные до отправки — на сервер уходит обезличенный текст"><span>Программа на моём компьютере сама заменяет ФИО и данные до отправки — на сервер уходит обезличенный текст</span></label>
+      <label class="opt"><input type="checkbox" value="Хранение данных на серверах в России"><span>Хранение данных на серверах в России</span></label>
+      <label class="opt"><input type="checkbox" value="Договор с гарантиями конфиденциальности"><span>Договор с гарантиями конфиденциальности</span></label>
+      <label class="opt"><input type="checkbox" value="Ничего — материалы дел не загружу никуда"><span>Ничего — материалы дел не загружу никуда</span></label>
+      <label class="opt"><input type="checkbox" value="Мне это не мешает, загружу и так"><span>Мне это не мешает, загружу и так</span></label>
+    </div>
+    <div class="sub-label">Свой вариант или сомнение — своими словами</div>
+    <textarea id="pd_barriers_comment" placeholder="Необязательно"></textarea>
+  </section>
+
+  <section class="q" id="q8">
+    <h2>Если бы существовал идеальный сервис, который забирает рутинную часть вашей работы — что он должен уметь в первую очередь?</h2>
+    <textarea id="ideal_service" placeholder="Необязательно"></textarea>
+  </section>
+
+  <section class="q" id="q9">
     <h2>Пара оценок навскидку</h2>
     <div class="sub-label">Сколько часов в неделю такой инструмент мог бы вам экономить, по ощущению?</div>
     <input type="text" id="hours_saved" inputmode="text" placeholder="Например: часа 3-4">
@@ -293,7 +315,7 @@
     <input type="text" id="hourly_rate" placeholder="Необязательно">
   </section>
 
-  <section class="q" id="q8">
+  <section class="q" id="q10">
     <h2>Оставьте телеграм, если хотите попробовать раннюю версию бесплатно — позову без спама.</h2>
     <input type="text" id="telegram_contact" placeholder="@username" autocapitalize="none" autocorrect="off">
   </section>
@@ -339,28 +361,46 @@
     updateProgress();
   });
 
-  ["q3-opts", "q5-opts", "q6-opts"].forEach(function (id) {
+  ["q3-opts", "q5-opts", "q6-opts", "q7-opts"].forEach(function (id) {
     $(id).addEventListener("change", function () {
       syncCardStates($(id));
       updateProgress();
     });
   });
 
-  // Q5: условная textarea
+  // Q5: textarea при любом ответе, подводка зависит от выбора
+  var q5Labels = {
+    "Да, регулярно помогает": "Что именно делаете с ИИ?",
+    "Пробовал(а), бросил(а)": "Что оттолкнуло?",
+    "Не пробовал(а)": "Почему?",
+    "Принципиально не доверяю": "Почему?"
+  };
   document.querySelectorAll('input[name="ai_usage"]').forEach(function (r) {
     r.addEventListener("change", function () {
-      $("q5-cond").classList.toggle("show", r.value === "Пробовал(а), бросил(а)" && r.checked);
+      if (r.checked) {
+        $("q5-cond-label").textContent = q5Labels[r.value];
+        $("q5-cond").classList.add("show");
+      }
     });
   });
 
-  // Прогресс: 8 блоков
+  // Q6: textarea при выборе "У меня уже есть такое решение"
+  document.querySelectorAll('input[name="case_office_need"]').forEach(function (r) {
+    r.addEventListener("change", function () {
+      $("q6-cond").classList.toggle("show", r.value === "У меня уже есть такое решение" && r.checked);
+    });
+  });
+
+  // Прогресс: 10 блоков
   var blocks = [
     function () { return $("practice_area").value || $("experience").value || $("work_format").value; },
     function () { return q2opts.querySelectorAll("input:checked").length > 0 || $("time_wasters_other").value.trim(); },
-    function () { return $("q3-opts").querySelectorAll("input:checked").length > 0; },
+    function () { return $("q3-opts").querySelectorAll("input:checked").length > 0 || $("tools_other").value.trim(); },
     function () { return $("tools_frustrations").value.trim(); },
     function () { return document.querySelector('input[name="ai_usage"]:checked'); },
-    function () { return document.querySelector('input[name="assistant_usefulness"]:checked') || $("assistant_must_have").value.trim(); },
+    function () { return document.querySelector('input[name="case_office_need"]:checked'); },
+    function () { return $("q7-opts").querySelectorAll("input:checked").length > 0 || $("pd_barriers_comment").value.trim(); },
+    function () { return $("ideal_service").value.trim(); },
     function () { return $("hours_saved").value.trim() || $("hourly_rate").value.trim(); },
     function () { return $("telegram_contact").value.trim(); }
   ];
@@ -388,6 +428,7 @@
     };
     var tw = checkedValues(q2opts);
     var tools = checkedValues($("q3-opts"));
+    var pd = checkedValues($("q7-opts"));
     return {
       practice_area: $("practice_area").value || null,
       experience: $("experience").value || null,
@@ -395,11 +436,15 @@
       time_wasters: tw.length ? tw : null,
       time_wasters_other: textOrNull("time_wasters_other"),
       tools_used: tools.length ? tools : null,
+      tools_other: textOrNull("tools_other"),
       tools_frustrations: textOrNull("tools_frustrations"),
       ai_usage: radioValue("ai_usage"),
-      ai_quit_reason: radioValue("ai_usage") === "Пробовал(а), бросил(а)" ? textOrNull("ai_quit_reason") : null,
-      assistant_usefulness: radioValue("assistant_usefulness"),
-      assistant_must_have: textOrNull("assistant_must_have"),
+      ai_comment: radioValue("ai_usage") ? textOrNull("ai_comment") : null,
+      case_office_need: radioValue("case_office_need"),
+      case_office_solution: radioValue("case_office_need") === "У меня уже есть такое решение" ? textOrNull("case_office_solution") : null,
+      pd_barriers: pd.length ? pd : null,
+      pd_barriers_comment: textOrNull("pd_barriers_comment"),
+      ideal_service: textOrNull("ideal_service"),
       hours_saved: textOrNull("hours_saved"),
       hourly_rate: textOrNull("hourly_rate"),
       telegram_contact: textOrNull("telegram_contact")

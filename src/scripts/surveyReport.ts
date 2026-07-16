@@ -21,6 +21,13 @@ interface SurveyResponse {
   ai_quit_reason: string | null;
   assistant_usefulness: string | null;
   assistant_must_have: string | null;
+  tools_other: string | null;
+  ai_comment: string | null;
+  case_office_need: string | null;
+  case_office_solution: string | null;
+  pd_barriers: string[] | null;
+  pd_barriers_comment: string | null;
+  ideal_service: string | null;
   hours_saved: string | null;
   hourly_rate: string | null;
   telegram_contact: string | null;
@@ -94,13 +101,20 @@ async function main() {
   multiDistribution("Куда уходит время (мультивыбор)", rows.map((r) => r.time_wasters));
   multiDistribution("Инструменты (мультивыбор)", rows.map((r) => r.tools_used));
   distribution("Опыт с ИИ", rows.map((r) => r.ai_usage));
-  distribution("Полезность ассистента", rows.map((r) => r.assistant_usefulness));
+  distribution("Полезность ассистента (старый В6, до правки)", rows.map((r) => r.assistant_usefulness));
+  distribution("Нужность кейс-офиса (работа с материалами дела)", rows.map((r) => r.case_office_need));
+  multiDistribution("Что снимет барьер персданных (мультивыбор)", rows.map((r) => r.pd_barriers));
 
   console.log("\n=== СВОБОДНЫЕ ОТВЕТЫ ===");
   freeText("Куда уходит время, другое", rows, (r) => r.time_wasters_other);
+  freeText("Инструменты, другое", rows, (r) => r.tools_other);
   freeText("Что раздражает в инструментах", rows, (r) => r.tools_frustrations);
-  freeText("Что оттолкнуло от ИИ", rows, (r) => r.ai_quit_reason);
-  freeText("Что ассистент должен уметь", rows, (r) => r.assistant_must_have);
+  freeText("Комментарий про ИИ (при любом ответе)", rows, (r) => r.ai_comment);
+  freeText("Что оттолкнуло от ИИ (старое поле, до правки)", rows, (r) => r.ai_quit_reason);
+  freeText("Что ассистент должен уметь (старый В6, до правки)", rows, (r) => r.assistant_must_have);
+  freeText("Какое решение для дел уже есть", rows, (r) => r.case_office_solution);
+  freeText("Барьер персданных, своими словами", rows, (r) => r.pd_barriers_comment);
+  freeText("Идеальный сервис: что должен уметь", rows, (r) => r.ideal_service);
   freeText("Часов экономии в неделю", rows, (r) => r.hours_saved);
   freeText("Стоимость часа", rows, (r) => r.hourly_rate);
   freeText("Телеграм для ранней версии", rows, (r) => r.telegram_contact);
