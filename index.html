@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Опрос для юристов</title>
+<style>
+  :root {
+    --bg: #f5f5f4;
+    --card: #ffffff;
+    --text: #1c1917;
+    --muted: #78716c;
+    --border: #e7e5e4;
+    --accent: #1d4ed8;
+    --accent-soft: #eff6ff;
+    --accent-border: #93c5fd;
+    --danger: #b91c1c;
+    --ok: #15803d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1917;
+      --card: #292524;
+      --text: #f5f5f4;
+      --muted: #a8a29e;
+      --border: #44403c;
+      --accent: #60a5fa;
+      --accent-soft: #1e3a5f;
+      --accent-border: #3b82f6;
+      --danger: #f87171;
+      --ok: #4ade80;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    font-size: 16px;
+  }
+  #progress-wrap {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 5px;
+    background: var(--border);
+    z-index: 10;
+  }
+  #progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    transition: width .3s ease;
+  }
+  main {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 28px 16px 48px;
+  }
+  .intro {
+    font-size: 17px;
+    margin-bottom: 28px;
+    padding: 18px 16px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+  }
+  .q {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 16px;
+    margin-bottom: 18px;
+  }
+  .q h2 {
+    font-size: 17px;
+    font-weight: 600;
+    margin-bottom: 14px;
+  }
+  .q .hint {
+    font-size: 14px;
+    color: var(--muted);
+    margin-top: -10px;
+    margin-bottom: 14px;
+  }
+  .sub-label {
+    font-size: 14px;
+    color: var(--muted);
+    margin: 14px 0 6px;
+  }
+  .sub-label:first-of-type { margin-top: 0; }
+  select, textarea, input[type="text"] {
+    width: 100%;
+    font-size: 16px;
+    font-family: inherit;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 13px 12px;
+    appearance: none;
+  }
+  select {
+    background-image: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='2' fill='none'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 36px;
+  }
+  textarea { min-height: 88px; resize: vertical; }
+  select:focus, textarea:focus, input[type="text"]:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+  }
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 13px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    font-size: 15.5px;
+    background: var(--bg);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .opt input {
+    width: 20px; height: 20px;
+    flex-shrink: 0;
+    margin-top: 1px;
+    accent-color: var(--accent);
+  }
+  .opt.checked {
+    background: var(--accent-soft);
+    border-color: var(--accent-border);
+  }
+  .counter {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .counter.full { color: var(--accent); font-weight: 600; }
+  .cond { margin-top: 10px; display: none; }
+  .cond.show { display: block; }
+  #submit-btn {
+    display: block;
+    width: 100%;
+    font-size: 18px;
+    font-weight: 600;
+    font-family: inherit;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 12px;
+    padding: 16px;
+    cursor: pointer;
+  }
+  #submit-btn:disabled { opacity: .6; cursor: default; }
+  #error-box {
+    display: none;
+    margin-top: 14px;
+    padding: 13px 12px;
+    border: 1px solid var(--danger);
+    border-radius: 10px;
+    color: var(--danger);
+    font-size: 15px;
+  }
+  #error-box.show { display: block; }
+  #error-box button {
+    margin-top: 8px;
+    font-size: 15px;
+    font-family: inherit;
+    color: var(--text);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 16px;
+    cursor: pointer;
+  }
+  #thanks {
+    display: none;
+    text-align: center;
+    padding: 64px 16px;
+  }
+  #thanks.show { display: block; }
+  #thanks .mark { font-size: 48px; margin-bottom: 16px; color: var(--ok); }
+  #thanks h1 { font-size: 22px; margin-bottom: 10px; }
+  #thanks p { color: var(--muted); }
+</style>
+</head>
+<body>
+<div id="progress-wrap"><div id="progress-bar"></div></div>
+
+<main id="form-view">
+  <p class="intro">Коллеги, делаю сервис для нашей работы. Прежде чем строить дальше — хочу понять, что реально болит, а не что мне кажется. 7 вопросов, 2-3 минуты, анонимно. Свободные графы ценнее галочек — пишите как есть.</p>
+
+  <section class="q" id="q1">
+    <h2>Пара слов о вас</h2>
+    <div class="sub-label">Направление</div>
+    <select id="practice_area">
+      <option value="" selected disabled>Выберите</option>
+      <option>Уголовное право и процесс</option>
+      <option>Гражданское, семейное</option>
+      <option>Арбитраж, банкротство</option>
+      <option>Административное</option>
+      <option>Несколько направлений</option>
+      <option>Другое</option>
+    </select>
+    <div class="sub-label">Стаж</div>
+    <select id="experience">
+      <option value="" selected disabled>Выберите</option>
+      <option>До 3 лет</option>
+      <option>3-10 лет</option>
+      <option>Больше 10 лет</option>
+    </select>
+    <div class="sub-label">Формат работы</div>
+    <select id="work_format">
+      <option value="" selected disabled>Выберите</option>
+      <option>Адвокат</option>
+      <option>Юрист компании</option>
+      <option>Консалтинг, частная практика</option>
+      <option>Госслужба</option>
+      <option>Другое</option>
+    </select>
+  </section>
+
+  <section class="q" id="q2">
+    <h2>Где у вас уходит больше всего времени впустую? Выберите до трёх.</h2>
+    <div class="counter" id="q2-counter">Выбрано: 0 из 3</div>
+    <div id="q2-opts">
+      <label class="opt"><input type="checkbox" value="Поиск судебной практики под конкретную позицию"><span>Поиск судебной практики под конкретную позицию</span></label>
+      <label class="opt"><input type="checkbox" value="Проверка, действует ли норма и в какой редакции"><span>Проверка, действует ли норма и в какой редакции</span></label>
+      <label class="opt"><input type="checkbox" value="Составление типовых документов"><span>Составление типовых документов</span></label>
+      <label class="opt"><input type="checkbox" value="Отслеживание изменений законодательства"><span>Отслеживание изменений законодательства</span></label>
+      <label class="opt"><input type="checkbox" value="Понять, как норма реально применяется, а не как написана"><span>Понять, как норма реально применяется, а не как написана</span></label>
+      <label class="opt"><input type="checkbox" value="Разъяснение доверителям перспектив и рисков"><span>Разъяснение доверителям перспектив и рисков</span></label>
+      <label class="opt"><input type="checkbox" value="Контроль сроков и учёт дел"><span>Контроль сроков и учёт дел</span></label>
+    </div>
+    <div class="sub-label">Другое</div>
+    <input type="text" id="time_wasters_other" placeholder="Свой вариант">
+  </section>
+
+  <section class="q" id="q3">
+    <h2>Чем пользуетесь в ежедневной работе?</h2>
+    <div id="q3-opts">
+      <label class="opt"><input type="checkbox" value="КонсультантПлюс"><span>КонсультантПлюс</span></label>
+      <label class="opt"><input type="checkbox" value="ГАРАНТ"><span>ГАРАНТ</span></label>
+      <label class="opt"><input type="checkbox" value="СудАкт, ГАС Правосудие и другие бесплатные"><span>СудАкт, ГАС Правосудие и другие бесплатные</span></label>
+      <label class="opt"><input type="checkbox" value="Телеграм-чаты коллег"><span>Телеграм-чаты коллег</span></label>
+      <label class="opt"><input type="checkbox" value="ChatGPT, Claude или другие ИИ"><span>ChatGPT, Claude или другие ИИ</span></label>
+      <label class="opt"><input type="checkbox" value="Ничего из перечисленного"><span>Ничего из перечисленного</span></label>
+    </div>
+  </section>
+
+  <section class="q" id="q4">
+    <h2>Что в этих инструментах раздражает или не хватает? Своими словами, можно жёстко.</h2>
+    <textarea id="tools_frustrations" placeholder="Необязательно, но очень ценно"></textarea>
+  </section>
+
+  <section class="q" id="q5">
+    <h2>Пробовали ИИ (ChatGPT и подобные) для рабочих юридических задач?</h2>
+    <div id="q5-opts">
+      <label class="opt"><input type="radio" name="ai_usage" value="Да, регулярно помогает"><span>Да, регулярно помогает</span></label>
+      <label class="opt"><input type="radio" name="ai_usage" value="Пробовал(а), бросил(а)"><span>Пробовал(а), бросил(а)</span></label>
+      <label class="opt"><input type="radio" name="ai_usage" value="Не пробовал(а)"><span>Не пробовал(а)</span></label>
+      <label class="opt"><input type="radio" name="ai_usage" value="Принципиально не доверяю"><span>Принципиально не доверяю</span></label>
+    </div>
+    <div class="cond" id="q5-cond">
+      <div class="sub-label">Что оттолкнуло?</div>
+      <textarea id="ai_quit_reason"></textarea>
+    </div>
+  </section>
+
+  <section class="q" id="q6">
+    <h2>Представьте ассистента, который отвечает от актуального текста нормы с выдержкой, честно говорит, чего не знает, и даёт реквизиты судебной практики. Насколько это полезно в вашей работе?</h2>
+    <div id="q6-opts">
+      <label class="opt"><input type="radio" name="assistant_usefulness" value="Очень полезно, ждал(а) такого"><span>Очень полезно, ждал(а) такого</span></label>
+      <label class="opt"><input type="radio" name="assistant_usefulness" value="Скорее полезно"><span>Скорее полезно</span></label>
+      <label class="opt"><input type="radio" name="assistant_usefulness" value="Сомневаюсь"><span>Сомневаюсь</span></label>
+      <label class="opt"><input type="radio" name="assistant_usefulness" value="Не нужно"><span>Не нужно</span></label>
+    </div>
+    <div class="sub-label">Что такой ассистент должен уметь обязательно, чтобы вы стали им пользоваться постоянно?</div>
+    <textarea id="assistant_must_have" placeholder="Необязательно"></textarea>
+  </section>
+
+  <section class="q" id="q7">
+    <h2>Пара оценок навскидку</h2>
+    <div class="sub-label">Сколько часов в неделю такой инструмент мог бы вам экономить, по ощущению?</div>
+    <input type="text" id="hours_saved" inputmode="text" placeholder="Например: часа 3-4">
+    <div class="sub-label">Сколько стоит час вашей работы — если не секрет.</div>
+    <input type="text" id="hourly_rate" placeholder="Необязательно">
+  </section>
+
+  <section class="q" id="q8">
+    <h2>Оставьте телеграм, если хотите попробовать раннюю версию бесплатно — позову без спама.</h2>
+    <input type="text" id="telegram_contact" placeholder="@username" autocapitalize="none" autocorrect="off">
+  </section>
+
+  <button id="submit-btn">Отправить</button>
+  <div id="error-box">
+    <div>Не получилось отправить, похоже на проблему с сетью. Ответы не потерялись.</div>
+    <button id="retry-btn">Повторить отправку</button>
+  </div>
+</main>
+
+<main id="thanks">
+  <div class="mark">&#10003;</div>
+  <h1>Спасибо, коллега</h1>
+  <p>Ответы записаны. Если оставили телеграм — напишу, когда будет что показать.</p>
+</main>
+
+<script>
+(function () {
+  var SUPABASE_URL = "https://xumxgwnvorgqefoldwma.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_jkRyPfygcOEFNpz1BhyHCQ_W00xH450";
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function syncCardStates(container) {
+    container.querySelectorAll(".opt").forEach(function (lbl) {
+      lbl.classList.toggle("checked", lbl.querySelector("input").checked);
+    });
+  }
+
+  // Q2: максимум 3 + счётчик
+  var q2opts = $("q2-opts");
+  var q2counter = $("q2-counter");
+  q2opts.addEventListener("change", function (e) {
+    var checked = q2opts.querySelectorAll("input:checked");
+    if (checked.length > 3) {
+      e.target.checked = false;
+      checked = q2opts.querySelectorAll("input:checked");
+    }
+    q2counter.textContent = "Выбрано: " + checked.length + " из 3";
+    q2counter.classList.toggle("full", checked.length === 3);
+    syncCardStates(q2opts);
+    updateProgress();
+  });
+
+  ["q3-opts", "q5-opts", "q6-opts"].forEach(function (id) {
+    $(id).addEventListener("change", function () {
+      syncCardStates($(id));
+      updateProgress();
+    });
+  });
+
+  // Q5: условная textarea
+  document.querySelectorAll('input[name="ai_usage"]').forEach(function (r) {
+    r.addEventListener("change", function () {
+      $("q5-cond").classList.toggle("show", r.value === "Пробовал(а), бросил(а)" && r.checked);
+    });
+  });
+
+  // Прогресс: 8 блоков
+  var blocks = [
+    function () { return $("practice_area").value || $("experience").value || $("work_format").value; },
+    function () { return q2opts.querySelectorAll("input:checked").length > 0 || $("time_wasters_other").value.trim(); },
+    function () { return $("q3-opts").querySelectorAll("input:checked").length > 0; },
+    function () { return $("tools_frustrations").value.trim(); },
+    function () { return document.querySelector('input[name="ai_usage"]:checked'); },
+    function () { return document.querySelector('input[name="assistant_usefulness"]:checked') || $("assistant_must_have").value.trim(); },
+    function () { return $("hours_saved").value.trim() || $("hourly_rate").value.trim(); },
+    function () { return $("telegram_contact").value.trim(); }
+  ];
+  function updateProgress() {
+    var done = blocks.filter(function (f) { return f(); }).length;
+    $("progress-bar").style.width = (done / blocks.length * 100) + "%";
+  }
+  document.addEventListener("input", updateProgress);
+  document.addEventListener("change", updateProgress);
+
+  function collect() {
+    var checkedValues = function (container) {
+      return Array.prototype.map.call(
+        container.querySelectorAll("input:checked"),
+        function (i) { return i.value; }
+      );
+    };
+    var radioValue = function (name) {
+      var r = document.querySelector('input[name="' + name + '"]:checked');
+      return r ? r.value : null;
+    };
+    var textOrNull = function (id) {
+      var v = $(id).value.trim();
+      return v ? v : null;
+    };
+    var tw = checkedValues(q2opts);
+    var tools = checkedValues($("q3-opts"));
+    return {
+      practice_area: $("practice_area").value || null,
+      experience: $("experience").value || null,
+      work_format: $("work_format").value || null,
+      time_wasters: tw.length ? tw : null,
+      time_wasters_other: textOrNull("time_wasters_other"),
+      tools_used: tools.length ? tools : null,
+      tools_frustrations: textOrNull("tools_frustrations"),
+      ai_usage: radioValue("ai_usage"),
+      ai_quit_reason: radioValue("ai_usage") === "Пробовал(а), бросил(а)" ? textOrNull("ai_quit_reason") : null,
+      assistant_usefulness: radioValue("assistant_usefulness"),
+      assistant_must_have: textOrNull("assistant_must_have"),
+      hours_saved: textOrNull("hours_saved"),
+      hourly_rate: textOrNull("hourly_rate"),
+      telegram_contact: textOrNull("telegram_contact")
+    };
+  }
+
+  function send() {
+    var btn = $("submit-btn");
+    btn.disabled = true;
+    btn.textContent = "Отправляю...";
+    $("error-box").classList.remove("show");
+    fetch(SUPABASE_URL + "/rest/v1/survey_responses", {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify(collect())
+    }).then(function (res) {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      $("form-view").style.display = "none";
+      $("thanks").classList.add("show");
+      $("progress-bar").style.width = "100%";
+      window.scrollTo(0, 0);
+    }).catch(function () {
+      $("error-box").classList.add("show");
+      btn.disabled = false;
+      btn.textContent = "Отправить";
+    });
+  }
+
+  $("submit-btn").addEventListener("click", send);
+  $("retry-btn").addEventListener("click", send);
+})();
+</script>
+</body>
+</html>
