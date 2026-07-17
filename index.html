@@ -455,11 +455,25 @@
     };
   }
 
+  // Один id на заполнение формы: повторная отправка после сетевой ошибки
+  // идёт с тем же id, сервер не даст вставить вторую запись (409 = уже дошло)
+  var submissionId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() :
+    "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+      var r = Math.random() * 16 | 0;
+      return (c === "x" ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+  var inFlight = false;
+  var done = false;
+
   function send() {
+    if (inFlight || done) return;
+    inFlight = true;
     var btn = $("submit-btn");
     btn.disabled = true;
     btn.textContent = "Отправляю...";
     $("error-box").classList.remove("show");
+    var payload = collect();
+    payload.id = submissionId;
     fetch(SUPABASE_URL + "/rest/v1/survey_responses", {
       method: "POST",
       headers: {
@@ -468,9 +482,10 @@
         "Content-Type": "application/json",
         "Prefer": "return=minimal"
       },
-      body: JSON.stringify(collect())
+      body: JSON.stringify(payload)
     }).then(function (res) {
-      if (!res.ok) throw new Error("HTTP " + res.status);
+      if (!res.ok && res.status !== 409) throw new Error("HTTP " + res.status);
+      done = true;
       $("form-view").style.display = "none";
       $("thanks").classList.add("show");
       $("progress-bar").style.width = "100%";
@@ -479,6 +494,8 @@
       $("error-box").classList.add("show");
       btn.disabled = false;
       btn.textContent = "Отправить";
+    }).finally(function () {
+      inFlight = false;
     });
   }
 
