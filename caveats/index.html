@@ -87,6 +87,25 @@
   textarea { min-height: 64px; resize: vertical; }
   textarea:focus, input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
   .sub-label { font-size: 14px; color: var(--muted); margin: 12px 0 6px; }
+  #practice-row { margin: 0 0 12px; }
+  #practice-row .p-label { display: inline-block; font-size: 13.5px; color: var(--muted); margin: 0 8px 6px 0; }
+  #practice-row button {
+    font-family: inherit;
+    font-size: 13.5px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 12px;
+    margin: 0 6px 6px 0;
+    background: var(--card);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #practice-row button.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+  textarea.nudge { outline: 2px solid var(--accent); outline-offset: -1px; }
+  #council-card p { margin-bottom: 12px; }
+  #council-error { display: none; color: var(--danger); font-size: 14px; margin-top: 8px; }
+  #council-error.show { display: block; }
   .verdicts { display: flex; gap: 8px; margin-top: 14px; }
   .verdicts button {
     flex: 1;
@@ -152,6 +171,12 @@
 
   <div id="review-view" class="hidden">
     <div id="counter"><span>Размечено: <span class="done" id="done-count">0</span> из <span id="total-count">0</span></span></div>
+    <div id="practice-row" class="hidden">
+      <span class="p-label">Ваш профиль:</span>
+      <button data-practice="criminal">Уголовные дела</button>
+      <button data-practice="civil">Гражданские</button>
+      <button data-practice="both">И то и другое</button>
+    </div>
     <div class="card">
       <div id="chips"></div>
       <div id="caveat-text"></div>
@@ -164,6 +189,24 @@
       </div>
       <div id="error-box">Не получилось отправить, похоже на проблему с сетью. Нажмите кнопку ещё раз.</div>
     </div>
+  </div>
+
+  <div class="card hidden" id="council-card">
+    <div id="council-ask">
+      <p id="council-text"></p>
+      <div class="verdicts">
+        <button id="council-yes">Да, расскажите</button>
+        <button id="council-no">Нет</button>
+      </div>
+    </div>
+    <div id="council-form" class="hidden">
+      <p>Раз в неделю пришлём 2-3 ответа ИИ-ассистента, ваша задача - сказать, что не так. Оставьте Telegram, чтобы мы могли написать.</p>
+      <div class="sub-label">Telegram для связи - необязательно</div>
+      <input type="text" id="council-tg" placeholder="@username">
+      <button class="primary-btn" id="council-send">Отправить</button>
+      <div id="council-error">Не получилось отправить, похоже на проблему с сетью. Попробуйте ещё раз.</div>
+    </div>
+    <div id="council-thanks" class="hidden">Спасибо, коллега. Напишем, когда соберём первый разбор.</div>
   </div>
 
   <div id="done-view">
@@ -198,11 +241,16 @@
   var answered = {};
   try { answered = JSON.parse(LS.get("caveat_answered", "{}")); } catch (e) { answered = {}; }
   var profile = LS.get("caveat_reviewer_profile", null);
+  // Профиль практики (уголовные/гражданские/оба) - один тап, хранится на устройстве.
+  var practice = LS.get("caveat_reviewer_practice", null);
 
   var queue = [];
   var current = null;
   var total = 0;
   var inFlight = false;
+  var rejectArmed = false;
+  var COMMENT_PLACEHOLDER = "Одна строка от практика ценнее галочки";
+  var REJECT_PLACEHOLDER = "Как на самом деле? Одна строка очень поможет";
 
   function shuffle(a) {
     for (var i = a.length - 1; i > 0; i--) {
@@ -220,10 +268,14 @@
   function showNext() {
     $("error-box").classList.remove("show");
     $("comment-input").value = "";
+    $("comment-input").placeholder = COMMENT_PLACEHOLDER;
+    $("comment-input").classList.remove("nudge");
+    rejectArmed = false;
     current = queue.shift() || null;
     if (!current) {
       $("review-view").classList.add("hidden");
       $("done-view").classList.add("show");
+      maybeShowCouncil();
       return;
     }
     var chips = '<span class="chip">' + escapeHtml(current["class"]) + "</span>";
@@ -263,7 +315,8 @@
         verdict: verdict,
         comment: comment || null,
         reviewer_token: token,
-        reviewer_profile: profile || null
+        reviewer_profile: profile || null,
+        reviewer_practice: practice || null
       })
     }).then(function (res) {
       // 409 = уже есть голос этого эксперта по этой карточке (повтор) - считаем доставленным.
@@ -271,6 +324,7 @@
       answered[caveatId] = 1;
       LS.set("caveat_answered", JSON.stringify(answered));
       showNext();
+      maybeShowCouncil();
     }).catch(function () {
       $("error-box").classList.add("show");
     }).finally(function () {
@@ -280,14 +334,84 @@
   }
 
   $("btn-confirm").addEventListener("click", function () { send("confirm"); });
-  $("btn-reject").addEventListener("click", function () { send("reject"); });
+  $("btn-reject").addEventListener("click", function () {
+    // Первый тап "Не так" без комментария - мягкая просьба одной строки, второй тап отправляет как есть.
+    if (!rejectArmed && !$("comment-input").value.trim()) {
+      rejectArmed = true;
+      $("comment-input").placeholder = REJECT_PLACEHOLDER;
+      $("comment-input").classList.add("nudge");
+      return;
+    }
+    send("reject");
+  });
   $("btn-depends").addEventListener("click", function () { send("depends"); });
+
+  // Профиль практики: рядом с карточкой до первого выбора, тап сохраняет и убирает блок.
+  function initPracticeRow() {
+    if (practice !== null) return;
+    $("practice-row").classList.remove("hidden");
+    Array.prototype.forEach.call($("practice-row").querySelectorAll("button"), function (btn) {
+      btn.addEventListener("click", function () {
+        practice = btn.getAttribute("data-practice");
+        LS.set("caveat_reviewer_practice", practice);
+        btn.classList.add("on");
+        setTimeout(function () { $("practice-row").classList.add("hidden"); }, 250);
+      });
+    });
+  }
+
+  // Самонабор в совет: мягкая карточка после 10 размеченных или в конце списка, один раз на устройство.
+  function maybeShowCouncil() {
+    if (LS.get("caveat_council_shown", null)) return;
+    var n = Object.keys(answered).length;
+    if (n < 10 && current !== null) return;
+    if (n === 0) return;
+    LS.set("caveat_council_shown", "1");
+    $("council-text").textContent = "Вы разметили уже " + n + " утверждений - это уровень эксперта. Мы собираем небольшой совет практиков: раз в неделю разбирать 2-3 ответа ИИ-ассистента и говорить, что не так. Интересно?";
+    $("council-card").classList.remove("hidden");
+  }
+  $("council-no").addEventListener("click", function () {
+    $("council-card").classList.add("hidden");
+  });
+  $("council-yes").addEventListener("click", function () {
+    $("council-ask").classList.add("hidden");
+    $("council-form").classList.remove("hidden");
+  });
+  $("council-send").addEventListener("click", function () {
+    var btn = $("council-send");
+    btn.disabled = true;
+    $("council-error").classList.remove("show");
+    fetch(SUPABASE_URL + "/rest/v1/council_interest", {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify({
+        reviewer_token: token,
+        telegram: $("council-tg").value.trim() || null,
+        reviewed_count: Object.keys(answered).length
+      })
+    }).then(function (res) {
+      // 409 = заявка этого устройства уже есть - считаем доставленной.
+      if (!res.ok && res.status !== 409) throw new Error("HTTP " + res.status);
+      $("council-form").classList.add("hidden");
+      $("council-thanks").classList.remove("hidden");
+    }).catch(function () {
+      $("council-error").classList.add("show");
+    }).finally(function () {
+      btn.disabled = false;
+    });
+  });
 
   function start() {
     var p = $("profile-input").value.trim();
     if (p) { profile = p; LS.set("caveat_reviewer_profile", p); }
     $("intro-view").classList.add("hidden");
     $("review-view").classList.remove("hidden");
+    initPracticeRow();
     showNext();
   }
   $("start-btn").addEventListener("click", start);

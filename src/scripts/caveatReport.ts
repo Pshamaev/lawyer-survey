@@ -23,6 +23,16 @@ interface Review {
   comment: string | null;
   reviewer_token: string;
   reviewer_profile: string | null;
+  // Профиль практики с чипов страницы: criminal | civil | both | null (не выбран).
+  reviewer_practice: "criminal" | "civil" | "both" | null;
+  created_at: string;
+}
+
+interface CouncilInterest {
+  id: number;
+  reviewer_token: string;
+  telegram: string | null;
+  reviewed_count: number;
   created_at: string;
 }
 
@@ -49,7 +59,7 @@ async function fetchAll(): Promise<Review[]> {
   const pageSize = 1000;
   for (let offset = 0; ; offset += pageSize) {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/caveat_reviews?select=caveat_id,verdict,comment,reviewer_token,reviewer_profile,created_at&order=created_at.asc&offset=${offset}&limit=${pageSize}`,
+      `${SUPABASE_URL}/rest/v1/caveat_reviews?select=caveat_id,verdict,comment,reviewer_token,reviewer_profile,reviewer_practice,created_at&order=created_at.asc&offset=${offset}&limit=${pageSize}`,
       {
         headers: {
           apikey: SERVICE_ROLE_KEY!,
@@ -63,6 +73,24 @@ async function fetchAll(): Promise<Review[]> {
     if (page.length < pageSize) break;
   }
   return rows;
+}
+
+async function fetchCouncil(): Promise<CouncilInterest[]> {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/council_interest?select=id,reviewer_token,telegram,reviewed_count,created_at&order=created_at.asc`,
+    {
+      headers: {
+        apikey: SERVICE_ROLE_KEY!,
+        Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      },
+    },
+  );
+  // Таблица могла ещё не быть создана - сводка по оговоркам важнее, не падаем.
+  if (!res.ok) {
+    console.error(`council_interest недоступна: HTTP ${res.status}`);
+    return [];
+  }
+  return (await res.json()) as CouncilInterest[];
 }
 
 type Status = "approved" | "rejected" | "needs_arbiter" | "pending";
@@ -84,6 +112,10 @@ async function main(): Promise<void> {
   const all: Caveat[] = JSON.parse(fs.readFileSync(caveatsPath, "utf-8"));
   const passed = all.filter((c) => c.filter_status === "passed");
   const reviews = await fetchAll();
+  const council = await fetchCouncil();
+
+  // Уголовный разрез: голоса практиков уголовного профиля (criminal + both).
+  const isCriminal = (r: Review) => r.reviewer_practice === "criminal" || r.reviewer_practice === "both";
 
   const byId = new Map<number, Review[]>();
   for (const r of reviews) {
@@ -101,7 +133,15 @@ async function main(): Promise<void> {
   }
 
   const uniqueReviewers = new Set(reviews.map((r) => r.reviewer_token)).size;
+  const byPractice: Record<string, number> = {};
+  for (const r of reviews) {
+    const key = r.reviewer_practice ?? "не указан";
+    byPractice[key] = (byPractice[key] ?? 0) + 1;
+  }
   console.log(`Оговорок в разметке: ${passed.length}; голосов: ${reviews.length}; экспертов: ${uniqueReviewers}`);
+  console.log(
+    `Голоса по профилю: ${Object.entries(byPractice).map(([k, v]) => `${k}=${v}`).join(" ") || "нет"}`,
+  );
   console.log(
     `Статусы: approved=${buckets.approved.length} rejected=${buckets.rejected.length} ` +
       `needs_arbiter=${buckets.needs_arbiter.length} pending=${buckets.pending.length}\n`,
@@ -112,6 +152,11 @@ async function main(): Promise<void> {
     console.log(`=== ${status.toUpperCase()} (${buckets[status].length}) ===`);
     for (const { c, votes, detail } of buckets[status]) {
       console.log(`[${c.id}] (${c.class}) ${detail}`);
+      const criminalVotes = votes.filter(isCriminal);
+      if (criminalVotes.length) {
+        const crim = statusOf(criminalVotes);
+        console.log(`    уголовный разрез (${criminalVotes.length} гол.): ${crim.status} - ${crim.detail}`);
+      }
       console.log(`    ${c.text.substring(0, 140)}`);
       for (const v of votes) {
         if (v.comment) console.log(`    - ${v.verdict}: "${v.comment}"${v.reviewer_profile ? ` (${v.reviewer_profile})` : ""}`);
@@ -126,6 +171,14 @@ async function main(): Promise<void> {
     for (const { c, votes } of votedPending) {
       console.log(`[${c.id}] голосов ${votes.length}: ${c.text.substring(0, 100)}`);
     }
+    console.log("");
+  }
+
+  console.log(`=== ЗАЯВКИ В СОВЕТ (${council.length}) ===`);
+  for (const ci of council) {
+    console.log(
+      `[${ci.created_at.substring(0, 10)}] ${ci.telegram ?? "без контакта"}; размечено ${ci.reviewed_count}; token ${ci.reviewer_token.substring(0, 8)}...`,
+    );
   }
 }
 
