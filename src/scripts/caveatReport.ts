@@ -3,11 +3,16 @@
  *
  * По каждой оговорке (filter_status=passed из caveats/caveats_filtered.json):
  * голоса из caveat_reviews, консенсус и статус:
- *   approved       - 3+ голосов и 75%+ "Так и есть" (confirm)
- *   rejected       - 3+ голосов и 75%+ "Не так" (reject)
- *   needs_arbiter  - 3+ голосов без консенсуса, либо консенсус "Зависит"
+ *   approved       - 3+ содержательных голосов и 75%+ "Так и есть" (confirm)
+ *   rejected       - 3+ содержательных голосов и 75%+ "Не так" (reject)
+ *   needs_arbiter  - 3+ содержательных голосов без консенсуса, либо консенсус "Зависит"
  *                    (75%+ depends: региональная/судейская вилка - решает арбитр)
- *   pending        - меньше 3 голосов
+ *   pending        - меньше 3 содержательных голосов
+ *
+ * "Не сталкивался" (not_encountered) - содержательным вердиктом НЕ считается:
+ * в базу консенсуса не входит, но показывается в сводке. Если not_encountered
+ * больше половины ВСЕХ голосов оговорки - пометка LOW_EXPOSURE (экзотика,
+ * кандидат на понижение веса в слое практики).
  *
  * Запуск (данные никуда не пишутся, только консоль):
  *   SUPABASE_URL=https://xumxgwnvorgqefoldwma.supabase.co \
@@ -19,7 +24,7 @@ import * as path from "path";
 
 interface Review {
   caveat_id: number;
-  verdict: "confirm" | "reject" | "depends";
+  verdict: "confirm" | "reject" | "depends" | "not_encountered";
   comment: string | null;
   reviewer_token: string;
   reviewer_profile: string | null;
@@ -95,16 +100,23 @@ async function fetchCouncil(): Promise<CouncilInterest[]> {
 
 type Status = "approved" | "rejected" | "needs_arbiter" | "pending";
 
-function statusOf(votes: Review[]): { status: Status; detail: string } {
-  const n = votes.length;
-  if (n < CONSENSUS_MIN_VOTES) return { status: "pending", detail: `голосов ${n} < ${CONSENSUS_MIN_VOTES}` };
-  const c = votes.filter((v) => v.verdict === "confirm").length;
-  const r = votes.filter((v) => v.verdict === "reject").length;
-  const d = votes.filter((v) => v.verdict === "depends").length;
-  if (c / n >= CONSENSUS_SHARE) return { status: "approved", detail: `подтверждено ${c}/${n}` };
-  if (r / n >= CONSENSUS_SHARE) return { status: "rejected", detail: `отклонено ${r}/${n}` };
-  if (d / n >= CONSENSUS_SHARE) return { status: "needs_arbiter", detail: `консенсус "Зависит" ${d}/${n} - вилка, решает арбитр` };
-  return { status: "needs_arbiter", detail: `разброс c=${c} r=${r} d=${d}` };
+function statusOf(votes: Review[]): { status: Status; detail: string; lowExposure: boolean } {
+  // not_encountered не входит в базу консенсуса, но учитывается для флага LOW_EXPOSURE.
+  const ne = votes.filter((v) => v.verdict === "not_encountered").length;
+  const substantive = votes.filter((v) => v.verdict !== "not_encountered");
+  const lowExposure = votes.length > 0 && ne > votes.length / 2;
+  const neNote = ne ? `; не сталкивались ${ne}` : "";
+  const n = substantive.length;
+  if (n < CONSENSUS_MIN_VOTES) {
+    return { status: "pending", detail: `содержательных голосов ${n} < ${CONSENSUS_MIN_VOTES}${neNote}`, lowExposure };
+  }
+  const c = substantive.filter((v) => v.verdict === "confirm").length;
+  const r = substantive.filter((v) => v.verdict === "reject").length;
+  const d = substantive.filter((v) => v.verdict === "depends").length;
+  if (c / n >= CONSENSUS_SHARE) return { status: "approved", detail: `подтверждено ${c}/${n}${neNote}`, lowExposure };
+  if (r / n >= CONSENSUS_SHARE) return { status: "rejected", detail: `отклонено ${r}/${n}${neNote}`, lowExposure };
+  if (d / n >= CONSENSUS_SHARE) return { status: "needs_arbiter", detail: `консенсус "Зависит" ${d}/${n} - вилка, решает арбитр${neNote}`, lowExposure };
+  return { status: "needs_arbiter", detail: `разброс c=${c} r=${r} d=${d}${neNote}`, lowExposure };
 }
 
 async function main(): Promise<void> {
@@ -123,13 +135,13 @@ async function main(): Promise<void> {
     byId.get(r.caveat_id)!.push(r);
   }
 
-  const buckets: Record<Status, Array<{ c: Caveat; votes: Review[]; detail: string }>> = {
+  const buckets: Record<Status, Array<{ c: Caveat; votes: Review[]; detail: string; lowExposure: boolean }>> = {
     approved: [], rejected: [], needs_arbiter: [], pending: [],
   };
   for (const c of passed) {
     const votes = byId.get(c.id) ?? [];
-    const { status, detail } = statusOf(votes);
-    buckets[status].push({ c, votes, detail });
+    const { status, detail, lowExposure } = statusOf(votes);
+    buckets[status].push({ c, votes, detail, lowExposure });
   }
 
   const uniqueReviewers = new Set(reviews.map((r) => r.reviewer_token)).size;
@@ -138,7 +150,13 @@ async function main(): Promise<void> {
     const key = r.reviewer_practice ?? "не указан";
     byPractice[key] = (byPractice[key] ?? 0) + 1;
   }
-  console.log(`Оговорок в разметке: ${passed.length}; голосов: ${reviews.length}; экспертов: ${uniqueReviewers}`);
+  const neTotal = reviews.filter((r) => r.verdict === "not_encountered").length;
+  const lowExposureCount = (Object.values(buckets) as Array<Array<{ lowExposure: boolean }>>)
+    .flat().filter((b) => b.lowExposure).length;
+  console.log(
+    `Оговорок в разметке: ${passed.length}; голосов: ${reviews.length}` +
+      ` (из них "не сталкивался": ${neTotal}); экспертов: ${uniqueReviewers}; LOW_EXPOSURE: ${lowExposureCount}`,
+  );
   console.log(
     `Голоса по профилю: ${Object.entries(byPractice).map(([k, v]) => `${k}=${v}`).join(" ") || "нет"}`,
   );
@@ -150,8 +168,8 @@ async function main(): Promise<void> {
   for (const status of ["approved", "rejected", "needs_arbiter"] as Status[]) {
     if (!buckets[status].length) continue;
     console.log(`=== ${status.toUpperCase()} (${buckets[status].length}) ===`);
-    for (const { c, votes, detail } of buckets[status]) {
-      console.log(`[${c.id}] (${c.class}) ${detail}`);
+    for (const { c, votes, detail, lowExposure } of buckets[status]) {
+      console.log(`[${c.id}] (${c.class}) ${detail}${lowExposure ? " [LOW_EXPOSURE: экзотика, кандидат на понижение веса]" : ""}`);
       const criminalVotes = votes.filter(isCriminal);
       if (criminalVotes.length) {
         const crim = statusOf(criminalVotes);
@@ -168,8 +186,8 @@ async function main(): Promise<void> {
   const votedPending = buckets.pending.filter((p) => p.votes.length > 0);
   if (votedPending.length) {
     console.log(`=== PENDING с голосами (${votedPending.length}) ===`);
-    for (const { c, votes } of votedPending) {
-      console.log(`[${c.id}] голосов ${votes.length}: ${c.text.substring(0, 100)}`);
+    for (const { c, votes, detail, lowExposure } of votedPending) {
+      console.log(`[${c.id}] голосов ${votes.length} (${detail})${lowExposure ? " [LOW_EXPOSURE]" : ""}: ${c.text.substring(0, 100)}`);
     }
     console.log("");
   }

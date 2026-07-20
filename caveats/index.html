@@ -124,6 +124,21 @@
   #btn-confirm { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
   #btn-reject { background: var(--danger-soft); border-color: var(--danger); color: var(--danger); }
   #btn-depends { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  /* "Не сталкивался" - честный выход, но визуально второстепенный: отдельной строкой, меньше и бледнее. */
+  .verdict-skip { margin-top: 8px; text-align: center; }
+  .verdict-skip button {
+    font-size: 13.5px;
+    font-weight: 400;
+    font-family: inherit;
+    color: var(--muted);
+    background: none;
+    border: none;
+    border-bottom: 1px dotted var(--muted);
+    padding: 4px 2px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .verdict-skip button:disabled { opacity: .5; cursor: default; }
   .primary-btn {
     display: block;
     width: 100%;
@@ -161,7 +176,7 @@
     <div class="card intro">
       <div class="intro-title">Проверка оговорок практики</div>
       <p>Коллеги, это утверждения о том, как нормы работают на самом деле, собранные из разборов реальных уголовных дел. Прежде чем показывать их пользователям сервиса, каждое должно подтвердить практикующие защитники.</p>
-      <p>Одна карточка - одно утверждение. Три кнопки: <b>Так и есть</b> (в вашей практике так), <b>Не так</b> (не соответствует практике), <b>Зависит</b> (от региона, суда, обстоятельств). Комментарий необязателен, но одна строка "как на самом деле" ценнее галочки.</p>
+      <p>Одна карточка - одно утверждение. Кнопками: <b>Так и есть</b> (в вашей практике так), <b>Не так</b> (не соответствует практике), <b>Зависит</b> (от региона, суда, обстоятельств), <b>Не сталкивался</b> (такой ситуации в практике не было). Комментарий необязателен, но одна строка "как на самом деле" ценнее галочки.</p>
       <p class="muted">Анонимно. Можно отвечать не на все и вернуться позже - прогресс сохранится на этом устройстве.</p>
       <div class="sub-label">Регион и стаж, если не секрет (например: Киров, 12 лет уголовки)</div>
       <input type="text" id="profile-input" placeholder="Необязательно">
@@ -186,6 +201,10 @@
         <button id="btn-confirm">Так и есть</button>
         <button id="btn-depends">Зависит</button>
         <button id="btn-reject">Не так</button>
+      </div>
+      <!-- Миграция not_encountered применена в garant-bot 2026-07-20 (check на 4 значения). -->
+      <div class="verdict-skip">
+        <button id="btn-skip">Не сталкивался</button>
       </div>
       <div id="error-box">Не получилось отправить, похоже на проблему с сетью. Нажмите кнопку ещё раз.</div>
     </div>
@@ -293,7 +312,11 @@
   }
 
   function setButtons(disabled) {
-    ["btn-confirm", "btn-reject", "btn-depends"].forEach(function (id) { $(id).disabled = disabled; });
+    // btn-skip ("Не сталкивался") может отсутствовать, пока закомментирован до миграции.
+    ["btn-confirm", "btn-reject", "btn-depends", "btn-skip"].forEach(function (id) {
+      var b = $(id);
+      if (b) b.disabled = disabled;
+    });
   }
 
   function send(verdict) {
@@ -345,6 +368,11 @@
     send("reject");
   });
   $("btn-depends").addEventListener("click", function () { send("depends"); });
+  // "Не сталкивался": комментарий не запрашиваем, шлём сразу; карточка закрывается честно,
+  // счётчик растёт как обычно (answered ставится в send). Кнопка появится после миграции.
+  if ($("btn-skip")) {
+    $("btn-skip").addEventListener("click", function () { send("not_encountered"); });
+  }
 
   // Профиль практики: рядом с карточкой до первого выбора, тап сохраняет и убирает блок.
   function initPracticeRow() {
