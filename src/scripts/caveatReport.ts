@@ -18,6 +18,11 @@
  *   SUPABASE_URL=https://xumxgwnvorgqefoldwma.supabase.co \
  *   SUPABASE_SERVICE_ROLE_KEY=... \
  *   npx tsx src/scripts/caveatReport.ts
+ *
+ * С флагом --emit-disputed дополнительно пишет caveats/disputed_ids.json -
+ * список id со статусом pending (содержательных голосов меньше 3) или
+ * needs_arbiter (нет 75% в одну сторону). Страница /caveats?focus=disputed
+ * показывает эти карточки первыми (точечная рассылка резервистам).
  */
 import * as fs from "fs";
 import * as path from "path";
@@ -192,10 +197,60 @@ async function main(): Promise<void> {
     console.log("");
   }
 
-  console.log(`=== ЗАЯВКИ В СОВЕТ (${council.length}) ===`);
+  // Досыл контакта со страницы: unique(reviewer_token) + insert-only RLS не дают дополнить
+  // пустую заявку, поэтому страница шлёт вторую строку с токеном "<token>-contact".
+  // Склеиваем пары по базовому токену: контакт и created_at берём из строки с контактом,
+  // reviewed_count - максимум из пары.
+  const CONTACT_SUFFIX = "-contact";
+  const byBaseToken = new Map<string, CouncilInterest[]>();
   for (const ci of council) {
+    const base = ci.reviewer_token.endsWith(CONTACT_SUFFIX)
+      ? ci.reviewer_token.slice(0, -CONTACT_SUFFIX.length)
+      : ci.reviewer_token;
+    if (!byBaseToken.has(base)) byBaseToken.set(base, []);
+    byBaseToken.get(base)!.push(ci);
+  }
+  const merged = [...byBaseToken.entries()].map(([base, rows]) => {
+    const withContact = rows.filter((r) => r.telegram);
+    const primary = withContact.length ? withContact[withContact.length - 1] : rows[0];
+    return {
+      base,
+      telegram: primary.telegram,
+      reviewed_count: Math.max(...rows.map((r) => r.reviewed_count)),
+      created_at: rows[0].created_at,
+      lateContact: rows.length > 1 && withContact.length > 0,
+    };
+  }).sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+  console.log(`=== ЗАЯВКИ В СОВЕТ (${merged.length}) ===`);
+  for (const ci of merged) {
     console.log(
-      `[${ci.created_at.substring(0, 10)}] ${ci.telegram ?? "без контакта"}; размечено ${ci.reviewed_count}; token ${ci.reviewer_token.substring(0, 8)}...`,
+      `[${ci.created_at.substring(0, 10)}] ${ci.telegram ?? "без контакта"}; размечено ${ci.reviewed_count}; token ${ci.base.substring(0, 8)}...${ci.lateContact ? " (контакт дослан позже)" : ""}`,
+    );
+  }
+
+  // --emit-disputed: приоритетный список для режима focus=disputed страницы /caveats.
+  if (process.argv.includes("--emit-disputed")) {
+    const ids = [...buckets.pending, ...buckets.needs_arbiter]
+      .map((b) => b.c.id)
+      .sort((a, b) => a - b);
+    const outPath = path.join(__dirname, "..", "..", "caveats", "disputed_ids.json");
+    fs.writeFileSync(
+      outPath,
+      JSON.stringify(
+        {
+          generated_at: new Date().toISOString(),
+          pending: buckets.pending.length,
+          needs_arbiter: buckets.needs_arbiter.length,
+          ids,
+        },
+        null,
+        2,
+      ) + "\n",
+      "utf-8",
+    );
+    console.log(
+      `\ndisputed_ids.json: ${ids.length} id (pending ${buckets.pending.length} + needs_arbiter ${buckets.needs_arbiter.length}) -> ${outPath}`,
     );
   }
 }

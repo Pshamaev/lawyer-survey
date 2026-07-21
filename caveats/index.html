@@ -106,6 +106,24 @@
   #council-card p { margin-bottom: 12px; }
   #council-error { display: none; color: var(--danger); font-size: 14px; margin-top: 8px; }
   #council-error.show { display: block; }
+  /* Компактная карточка досыла контакта для заявки в совет без телеграма. */
+  #contact-followup { position: relative; }
+  #contact-followup p { margin-bottom: 12px; padding-right: 24px; font-size: 15px; }
+  #contact-followup .close-x {
+    position: absolute;
+    top: 6px;
+    right: 10px;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--muted);
+    background: none;
+    border: none;
+    padding: 6px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #followup-error { display: none; color: var(--danger); font-size: 14px; margin-top: 8px; }
+  #followup-error.show { display: block; }
   .verdicts { display: flex; gap: 8px; margin-top: 14px; }
   .verdicts button {
     flex: 1;
@@ -163,6 +181,9 @@
     font-size: 14.5px;
   }
   #error-box.show { display: block; }
+  /* Тонкая строка-пояснение режима focus=disputed (точечная рассылка по спорным). */
+  #focus-note { display: none; font-size: 13.5px; color: var(--muted); margin-bottom: 12px; }
+  #focus-note.show { display: block; }
   #done-view { display: none; text-align: center; padding: 56px 16px; }
   #done-view.show { display: block; }
   #done-view .mark { font-size: 48px; margin-bottom: 14px; color: var(--ok); }
@@ -172,6 +193,7 @@
 </head>
 <body>
 <main>
+  <div id="focus-note">Показываем сначала спорные утверждения - по ним мнения коллег разошлись, ваш голос решающий</div>
   <div id="intro-view">
     <div class="card intro">
       <div class="intro-title">Проверка оговорок практики</div>
@@ -226,6 +248,18 @@
       <div id="council-error">Не получилось отправить, похоже на проблему с сетью. Попробуйте ещё раз.</div>
     </div>
     <div id="council-thanks" class="hidden">Спасибо, коллега. Напишем, когда соберём первый разбор.</div>
+  </div>
+
+  <!-- Досыл контакта: показывается один раз, только если заявка в совет ушла без контакта. -->
+  <div class="card hidden" id="contact-followup">
+    <button class="close-x" id="followup-close" aria-label="Закрыть">&times;</button>
+    <div id="followup-form">
+      <p>Вы оставляли заявку в экспертный совет без контакта - оставьте телеграм или почту, чтобы мы могли позвать Вас при старте.</p>
+      <input type="text" id="followup-contact" placeholder="@username или почта">
+      <button class="primary-btn" id="followup-send">Отправить</button>
+      <div id="followup-error">Не получилось отправить, похоже на проблему с сетью. Попробуйте ещё раз.</div>
+    </div>
+    <div id="followup-thanks" class="hidden">Спасибо, записали контакт. Напишем при старте совета.</div>
   </div>
 
   <div id="done-view">
@@ -409,6 +443,7 @@
     var btn = $("council-send");
     btn.disabled = true;
     $("council-error").classList.remove("show");
+    var contact = $("council-tg").value.trim();
     fetch(SUPABASE_URL + "/rest/v1/council_interest", {
       method: "POST",
       headers: {
@@ -419,12 +454,15 @@
       },
       body: JSON.stringify({
         reviewer_token: token,
-        telegram: $("council-tg").value.trim() || null,
+        telegram: contact || null,
         reviewed_count: Object.keys(answered).length
       })
     }).then(function (res) {
       // 409 = заявка этого устройства уже есть - считаем доставленной.
       if (!res.ok && res.status !== 409) throw new Error("HTTP " + res.status);
+      LS.set("caveat_council_sent", "1");
+      // Заявка без контакта: запоминаем, чтобы при следующем визите один раз попросить телеграм/почту.
+      if (!contact) LS.set("caveat_council_no_contact", "1");
       $("council-form").classList.add("hidden");
       $("council-thanks").classList.remove("hidden");
     }).catch(function () {
@@ -433,6 +471,54 @@
       btn.disabled = false;
     });
   });
+
+  // Досыл контакта к заявке без телеграма. Показ один раз на устройство, при визите,
+  // следующем за отправкой пустой заявки (в момент отправки не вызывается, только при загрузке).
+  // Unique на reviewer_token в council_interest не даёт вставить вторую строку тем же токеном
+  // (RLS anon insert-only, update невозможен), поэтому шлём token + "-contact" отдельной строкой;
+  // caveatReport.ts склеивает пару по базовому токену и берёт строку с контактом.
+  function maybeShowContactFollowup() {
+    if (LS.get("caveat_council_no_contact", null) !== "1") return;
+    if (LS.get("caveat_council_contact_sent", null)) return;
+    if (LS.get("caveat_council_followup_shown", null)) return;
+    LS.set("caveat_council_followup_shown", "1");
+    $("contact-followup").classList.remove("hidden");
+  }
+  $("followup-close").addEventListener("click", function () {
+    $("contact-followup").classList.add("hidden");
+  });
+  $("followup-send").addEventListener("click", function () {
+    var contact = $("followup-contact").value.trim();
+    if (!contact) { $("followup-contact").focus(); return; }
+    var btn = $("followup-send");
+    btn.disabled = true;
+    $("followup-error").classList.remove("show");
+    fetch(SUPABASE_URL + "/rest/v1/council_interest", {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify({
+        reviewer_token: token + "-contact",
+        telegram: contact,
+        reviewed_count: Object.keys(answered).length
+      })
+    }).then(function (res) {
+      // 409 = строка с контактом уже есть (повторный тап) - считаем доставленной.
+      if (!res.ok && res.status !== 409) throw new Error("HTTP " + res.status);
+      LS.set("caveat_council_contact_sent", "1");
+      $("followup-form").classList.add("hidden");
+      $("followup-thanks").classList.remove("hidden");
+    }).catch(function () {
+      $("followup-error").classList.add("show");
+    }).finally(function () {
+      btn.disabled = false;
+    });
+  });
+  maybeShowContactFollowup();
 
   function start() {
     var p = $("profile-input").value.trim();
@@ -444,10 +530,36 @@
   }
   $("start-btn").addEventListener("click", start);
 
-  fetch("./caveats_filtered.json").then(function (r) { return r.json(); }).then(function (all) {
+  // Режим focus=disputed (точечная рассылка): приоритетные id из статического
+  // disputed_ids.json (обновляется скриптом caveatReport --emit-disputed; агрегаты
+  // голосов с anon-ключа не читаем - RLS insert-only). Приоритетные показываются
+  // первыми, внутри групп порядок случайный. Без параметра или при недоступном
+  // файле поведение ровно прежнее.
+  var focusDisputed = /[?&]focus=disputed(?:&|$)/.test(location.search);
+  var disputedReq = focusDisputed
+    ? fetch("./disputed_ids.json").then(function (r) { return r.json(); })
+        .then(function (d) { return (d && d.ids) || []; })
+        .catch(function () { return []; })
+    : Promise.resolve([]);
+
+  Promise.all([
+    fetch("./caveats_filtered.json").then(function (r) { return r.json(); }),
+    disputedReq
+  ]).then(function (res) {
+    var all = res[0];
+    var disputedIds = res[1];
     var passed = all.filter(function (c) { return c.filter_status === "passed"; });
     total = passed.length;
-    queue = shuffle(passed.filter(function (c) { return !answered[c.id]; }));
+    var remaining = passed.filter(function (c) { return !answered[c.id]; });
+    if (focusDisputed && disputedIds.length) {
+      var prio = {};
+      disputedIds.forEach(function (id) { prio[id] = 1; });
+      queue = shuffle(remaining.filter(function (c) { return prio[c.id]; }))
+        .concat(shuffle(remaining.filter(function (c) { return !prio[c.id]; })));
+      $("focus-note").classList.add("show");
+    } else {
+      queue = shuffle(remaining);
+    }
     updateCounter();
     // Профиль уже вводили - интро не мучаем повторно.
     if (profile !== null && Object.keys(answered).length > 0) start();
